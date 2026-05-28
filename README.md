@@ -29,17 +29,10 @@ Video Grabber - бесплатная программа для скачиван�
 
 ## 🚀 Установка и запуск
 
-### Способ 1: Готовый EXE-файл (рекомендуется)
-
 1. Скачайте последнюю версию из раздела [Releases](https://github.com/almarus/VideoGrabber/releases)
 2. Запустите `VideoGrabber.exe`
 3. При первом запуске программа предложит скачать необходимые компоненты (yt-dlp и FFmpeg)
 4. Вставьте ссылку, выберите желаемое качество и нажмите скачать
-
-🙏 Благодарности
-Проект	Лицензия	За что благодарим
-https://img.shields.io/badge/yt--dlp-Unlicense-00ADD8	Unlicense	Основа программы — поддержка 1800+ сайтов
-https://img.shields.io/badge/customtkinter-MIT-0078D4	MIT	Современный и красивый интерфейс
 https://img.shields.io/badge/Pillow-HPND-FFD43B	HPND	Обработка и отображение превью
 https://img.shields.io/badge/requests-Apache_2.0-00ADD8	Apache 2.0	HTTP-запросы и загрузка файлов
 https://img.shields.io/badge/browser--cookie3-MIT-4CAF50	MIT	Работа с куками браузера для VK
