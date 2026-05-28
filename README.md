@@ -32,3 +32,40 @@ Video Grabber - бесплатная программа для скачиван�
 | 🔄 **Автообновление** | Встроенный механизм обновления yt-dlp и FFmpeg |
 
 ---
+
+## 🙏 CREDITS
+
+### Используемые библиотеки и проекты
+
+| Проект | Лицензия | Описание |
+|--------|----------|----------|
+| [yt-dlp](https://github.com/yt-dlp/yt-dlp) | Unlicense | Мощный движок для загрузки с 1800+ сайтов |
+| [customtkinter](https://github.com/TomSchimansky/CustomTkinter) | MIT | Современный графический интерфейс |
+| [Pillow](https://github.com/python-pillow/Pillow) | HPND | Обработка изображений и превью |
+| [requests](https://github.com/psf/requests) | Apache 2.0 | HTTP-запросы и загрузка файлов |
+| [browser_cookie3](https://github.com/borisbabic/browser_cookie3) | MIT | Работа с куками браузера |
+| [PyInstaller](https://github.com/pyinstaller/pyinstaller) | GPL 2.0 | Компиляция в EXE-файл |
+
+### Благодарности
+
+| Кому | За что |
+|------|--------|
+| **Сообщество yt-dlp** | Постоянная поддержка и обновление экстракторов |
+| **Команда FFmpeg** | Мощный движок для обработки видео и аудио |
+| **Все контрибьюторы** | Вклад в развитие открытого ПО |
+| **Тестировщики** | Помощь в поиске и исправлении ошибок |
+| **Пользователи** | Звёзды ⭐ и обратная связь |
+
+### Автор
+
+**Павел Прилуцкий**
+- [VK](https://vk.com/kerfaers)
+- [Telegram](https://t.me/Pavel_Priluckiy)
+
+---
+
+### Поддержать проект
+
+Если вам нравится Video Grabber, поставьте звезду на GitHub!
+
+[![GitHub stars](https://img.shields.io/github/stars/almarus/VideoGrabber?style=social)](https://github.com/almarus/VideoGrabber/stargazers)
