@@ -61,11 +61,3 @@ Video Grabber - бесплатная программа для скачиван�
 **Павел Прилуцкий**
 - [VK](https://vk.com/kerfaers)
 - [Telegram](https://t.me/Pavel_Priluckiy)
-
----
-
-### Поддержать проект
-
-Если вам нравится Video Grabber, поставьте звезду на GitHub!
-
-[![GitHub stars](https://img.shields.io/github/stars/almarus/VideoGrabber?style=social)](https://github.com/almarus/VideoGrabber/stargazers)
