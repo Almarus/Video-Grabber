@@ -23,7 +23,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import subprocess
 import zipfile
 import shutil
-import signal
 
 try:
     import browser_cookie3
@@ -35,6 +34,30 @@ YTDLP_GITHUB_API = "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest"
 YTDLP_EXE_NAME = "yt-dlp.exe"
 FFMPEG_BASE_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
 FFMPEG_ZIP_NAME = "ffmpeg-release-essentials.zip"
+
+def get_icon_path():
+    if getattr(sys, 'frozen', False):
+        base = Path(sys.executable).parent
+    else:
+        base = Path(__file__).parent
+    icon = base / "icon.ico"
+    return icon if icon.exists() else None
+
+def set_window_icon(window):
+    icon_path = get_icon_path()
+    if not icon_path or not icon_path.exists():
+        return False
+    try:
+        if platform.system() == "Windows":
+            hicon = ctypes.windll.user32.LoadImageW(0, str(icon_path), 1, 0, 0, 0x00000010 | 0x00002000)
+            if hicon:
+                ctypes.windll.user32.SendMessageW(window.winfo_id(), 0x0080, 0, hicon)
+                ctypes.windll.user32.SendMessageW(window.winfo_id(), 0x0080, 1, hicon)
+                return True
+        window.iconbitmap(str(icon_path))
+        return True
+    except:
+        return False
 
 class YtDlpUpdater:
     @staticmethod
@@ -178,6 +201,7 @@ class UpdaterProgressWindow:
         self.window.resizable(False, False)
         self.window.grab_set()
         self.window.protocol("WM_DELETE_WINDOW", self.on_cancel)
+        self.window.after(100, lambda: set_window_icon(self.window))
         self.on_complete = on_complete
         self.ffmpeg_dir = ffmpeg_dir
         self.cancelled = False
@@ -316,30 +340,6 @@ POPULAR_SITES = {
     "🎮 Coub": "https://coub.com/",
 }
 
-def get_icon_path():
-    if getattr(sys, 'frozen', False):
-        base = Path(sys.executable).parent
-    else:
-        base = Path(__file__).parent
-    icon = base / ICON_FILE
-    return icon if icon.exists() else None
-
-def set_window_icon(window):
-    icon_path = get_icon_path()
-    if not icon_path or not icon_path.exists():
-        return False
-    try:
-        if platform.system() == "Windows":
-            hicon = ctypes.windll.user32.LoadImageW(0, str(icon_path), 1, 0, 0, 0x00000010 | 0x00002000)
-            if hicon:
-                ctypes.windll.user32.SendMessageW(window.winfo_id(), 0x0080, 0, hicon)
-                ctypes.windll.user32.SendMessageW(window.winfo_id(), 0x0080, 1, hicon)
-                return True
-        window.iconbitmap(str(icon_path))
-        return True
-    except:
-        return False
-
 def safe_filename(title, max_length=200):
     for ch in '<>:"/\\|?*':
         title = title.replace(ch, '_')
@@ -451,7 +451,7 @@ class LicenseWindow:
         header.pack_propagate(False)
         ctk.CTkLabel(header, text="⚖️", font=ctk.CTkFont(size=28), text_color="#2563EB").pack(side="left", padx=(20,10), pady=15)
         ctk.CTkLabel(header, text="Лицензионное соглашение", font=ctk.CTkFont(size=18, weight="bold"), text_color="#0F172A").pack(side="left", pady=15)
-        ctk.CTkLabel(header, text="v3.0", font=ctk.CTkFont(size=11, weight="bold"), text_color="#2563EB", fg_color="#EFF6FF", corner_radius=6, padx=8, pady=2).pack(side="left", padx=10, pady=18)
+        ctk.CTkLabel(header, text="v1.0", font=ctk.CTkFont(size=11, weight="bold"), text_color="#2563EB", fg_color="#EFF6FF", corner_radius=6, padx=8, pady=2).pack(side="left", padx=10, pady=18)
         content = ctk.CTkFrame(main, fg_color="#FFFFFF")
         content.pack(fill="both", expand=True, padx=25, pady=(10,20))
         text_area = ctk.CTkScrollableFrame(content, fg_color="#F8FAFC", corner_radius=12, border_width=1, border_color="#E2E8F0")
@@ -640,6 +640,8 @@ class VideoGrabber:
         self.current_info_lock = threading.Lock()
         self.download_lock = threading.Lock()
         self.load_settings()
+        self.normal_window_size = None  # Для запоминания обычного размера окна
+        self._closing = False
 
         if getattr(sys, 'frozen', False):
             _base = Path(sys.executable).parent
@@ -772,12 +774,15 @@ class VideoGrabber:
         self.window_width = 480
         self.window_height = 320
         self.root.geometry(f"{self.window_width}x{self.window_height}")
-        self.root.resizable(False, False)
+        self.root.resizable(True, True)
+        self.root.minsize(400, 300)
         self.state_manager = WidgetStateManager()
         self.current_info = None
         self.is_downloading = False
         self.should_stop = False
         self.current_ydl = None
+        self._active_ydl_instances = []
+        self._active_ydl_lock = threading.Lock()
         self.total_size = 0
         self.downloaded = 0
         self.start_time = None
@@ -994,8 +999,8 @@ class VideoGrabber:
         self.playlist_cancel_button.pack(side="right", padx=(5,0))
         self.playlist_count_label = ctk.CTkLabel(self.playlist_title_frame, text="", font=ctk.CTkFont(size=11), text_color=self.colors['text_secondary'])
         self.playlist_count_label.pack(padx=12, pady=(0,10))
-        self.playlist_list_frame = ctk.CTkScrollableFrame(self.content_frame, fg_color=self.colors['surface'], corner_radius=10, border_width=1, border_color=self.colors['border'], height=350)
-        self.state_manager.register_widget(state, self.playlist_list_frame, {'fill': 'x', 'padx': 5, 'pady': (0,8)})
+        self.playlist_list_frame = ctk.CTkScrollableFrame(self.content_frame, fg_color=self.colors['surface'], corner_radius=10, border_width=1, border_color=self.colors['border'])
+        self.state_manager.register_widget(state, self.playlist_list_frame, {'fill': 'x', 'padx': 5, 'pady': (0,8), 'expand': True})
         self.playlist_preview_container = ctk.CTkFrame(self.content_frame, fg_color=self.colors['surface'], corner_radius=10, border_width=1, border_color=self.colors['border'], height=100)
         self.state_manager.register_widget(state, self.playlist_preview_container, {'fill': 'x', 'padx': 5, 'pady': (0,8)})
         self.playlist_preview_container.pack_propagate(False)
@@ -1048,10 +1053,7 @@ class VideoGrabber:
     
     def cancel_and_return(self):
         if self.is_downloading:
-            with self.download_lock:
-                self.should_stop = True
-                self.is_downloading = False
-            time.sleep(0.5)
+            self.stop_download()
         self.current_info = None
         self.playlist_videos = []
         self.skipped_videos.clear()
@@ -1066,10 +1068,15 @@ class VideoGrabber:
         if hasattr(self, 'current_video_label'): self.current_video_label.configure(text="")
         self.url_entry.delete(0,'end')
         self.state_manager.switch_state('initial', self.content_frame)
-        self.root.geometry(f"{self.window_width}x{self.window_height}")
+        # Восстанавливаем размер окна, который был до открытия плейлиста
+        if self.normal_window_size:
+            self.root.geometry(f"{self.normal_window_size[0]}x{self.normal_window_size[1]}")
         self.url_entry.focus()
     
     def switch_to_video_state(self, info):
+        # Запоминаем текущий размер окна перед переключением
+        self.normal_window_size = (self.root.winfo_width(), self.root.winfo_height())
+        
         self.is_playlist = False
         with self.current_info_lock:
             self.current_info = info
@@ -1095,7 +1102,6 @@ class VideoGrabber:
         self.download_button.configure(text="Скачать видео", fg_color=self.colors['primary'])
         self.open_folder_button.configure(state="disabled")
         self.state_manager.switch_state('video', self.content_frame)
-        self.root.geometry(f"{self.window_width}x{440}")
         if info.get('thumbnail'):
             threading.Thread(target=self.load_thumbnail, args=(info['thumbnail'], 'video'), daemon=True).start()
     
@@ -1110,6 +1116,9 @@ class VideoGrabber:
         return any(re.search(p, url.lower()) for p in patterns)
     
     def switch_to_playlist_state(self, info):
+        # Запоминаем текущий размер окна перед переключением на плейлист
+        self.normal_window_size = (self.root.winfo_width(), self.root.winfo_height())
+        
         self.is_playlist = True
         self.skipped_videos.clear()
         self.downloaded_videos = 0
@@ -1175,7 +1184,8 @@ class VideoGrabber:
         active = len(self.playlist_videos)
         self.playlist_download_button.configure(text=f"Скачать {content_type} ({active})", fg_color=self.colors['primary'])
         self.state_manager.switch_state('playlist', self.content_frame)
-        self.root.geometry(f"{self.window_width}x{700}")
+        # Устанавливаем комфортный размер окна для плейлиста
+        self.root.geometry("700x600")
         if self.playlist_videos:
             self.select_playlist_video(0)
     
@@ -1231,8 +1241,38 @@ class VideoGrabber:
         dur = video.get('duration')
         if dur:
             self.selected_video_info.configure(text=f"⏱ {str(timedelta(seconds=dur))}")
-        if video.get('thumbnail'):
-            threading.Thread(target=self.load_thumbnail, args=(video['thumbnail'], 'playlist'), daemon=True).start()
+        thumbnail = video.get('thumbnail')
+        if thumbnail:
+            threading.Thread(target=self.load_thumbnail, args=(thumbnail, 'playlist'), daemon=True).start()
+        else:
+            v_url = video.get('webpage_url') or video.get('url')
+            if v_url:
+                threading.Thread(target=self._fetch_and_load_thumbnail, args=(index, v_url), daemon=True).start()
+
+    def _fetch_and_load_thumbnail(self, index, url):
+        try:
+            opts = {
+                'quiet': True, 'no_warnings': True,
+                'extract_flat': False, 'socket_timeout': 10,
+            }
+            if 'youtube.com' in url.lower() or 'youtu.be' in url.lower():
+                opts['extractor_args'] = {'youtube': {'player_client': ['android_vr', 'android']}}
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                if not info:
+                    return
+                thumb = info.get('thumbnail')
+                if index < len(self.playlist_videos):
+                    if thumb:
+                        self.playlist_videos[index]['thumbnail'] = thumb
+                    if not self.playlist_videos[index].get('duration') and info.get('duration'):
+                        self.playlist_videos[index]['duration'] = info['duration']
+                        dur_str = str(timedelta(seconds=info['duration']))
+                        self.root.after(0, lambda s=dur_str: self.selected_video_info.configure(text=f"⏱ {s}"))
+                if thumb and index == self.selected_video_index:
+                    self.load_thumbnail(thumb, 'playlist')
+        except Exception:
+            pass
     
     def load_thumbnail(self, url, target='video'):
         if len(self.thumbnail_cache) > 200:
@@ -1414,13 +1454,13 @@ class VideoGrabber:
             d['progress_bar'].set(0)
             d['progress_label'].configure(text="0%")
         def download_task(task):
-            if self.should_stop:
+            if self.should_stop or self._closing:
                 return (task[0], False)
             return (task[0], self.download_single_video(task[1], task[0]))
         with ThreadPoolExecutor(max_workers=3) as ex:
             futures = {ex.submit(download_task, t): t for t in tasks}
             for f in as_completed(futures):
-                if self.should_stop:
+                if self.should_stop or self._closing:
                     ex.shutdown(wait=False, cancel_futures=True)
                     break
                 t = futures[f]
@@ -1438,7 +1478,7 @@ class VideoGrabber:
                     self.root.after(0, self.update_video_progress, t[0], 0, 0)
                 prog = self.downloaded_videos / self.total_videos if self.total_videos>0 else 0
                 self.root.after(0, self.update_playlist_progress, prog, self.downloaded_videos, self.total_videos, failed, t[2])
-        if not self.should_stop:
+        if not self.should_stop and not self._closing:
             msg = f"Загружено: {self.downloaded_videos} из {self.total_videos}"
             if failed: msg += f"\nОшибок: {failed}"
             if self.skipped_videos: msg += f"\nПропущено: {len(self.skipped_videos)}"
@@ -1462,6 +1502,8 @@ class VideoGrabber:
         except: pass
     
     def download_single_video(self, url, video_index):
+        if self._closing:
+            return False
         _state = {'downloaded': 0, 'total_size': 0, 'start_time': time.time()}
         if video_index is None:
             self.start_time = _state['start_time']
@@ -1538,19 +1580,6 @@ class VideoGrabber:
         elif 'dzen.ru' in url.lower() or 'zen.yandex.ru' in url.lower():
             opts['referer'] = 'https://zen.yandex.ru/'
 
-        if is_youtube:
-            try:
-                info_opts = {k: v for k, v in opts.items() if k not in ('progress_hooks',)}
-                info_opts['quiet'] = True
-                info_opts['no_warnings'] = True
-                with yt_dlp.YoutubeDL(info_opts) as ydl_info:
-                    info = ydl_info.extract_info(url, download=False)
-                    if info:
-                        fmts = info.get('formats', [])
-                        best_height = max((f.get('height') or 0 for f in fmts), default=0)
-            except Exception as e:
-                pass
-
         strategies = []
 
         if is_youtube and FFMPEG_AVAILABLE:
@@ -1577,31 +1606,40 @@ class VideoGrabber:
 
         last_error = None
         for i, (name, strategy_opts) in enumerate(strategies):
-            if self.should_stop:
+            if self.should_stop or self._closing:
                 return False
             try:
-                print(f"Попытка {i+1}/{len(strategies)} [{name}]...")
-                self.current_ydl = yt_dlp.YoutubeDL(strategy_opts)
-                self.current_ydl.download([url])
-                print(f"Успешно скачано [{name}]")
+                ydl = yt_dlp.YoutubeDL(strategy_opts)
+                self.current_ydl = ydl
+                with self._active_ydl_lock:
+                    self._active_ydl_instances.append(ydl)
+                try:
+                    ydl.download([url])
+                finally:
+                    with self._active_ydl_lock:
+                        try:
+                            self._active_ydl_instances.remove(ydl)
+                        except ValueError:
+                            pass
+                if self.should_stop or self._closing:
+                    return False
                 return True
             except Exception as e:
                 last_error = e
-                if self.should_stop:
+                with self._active_ydl_lock:
+                    try:
+                        self._active_ydl_instances.remove(ydl)
+                    except (ValueError, UnboundLocalError):
+                        pass
+                if self.should_stop or self._closing:
                     return False
-                print(f"[{name}] не сработало: {e}")
 
         print(f"Все стратегии исчерпаны. Последняя ошибка: {last_error}")
         return False
     
     def progress_hook(self, d, video_index, _state=None):
-        if self.should_stop:
-            if self.current_ydl:
-                try:
-                    self.current_ydl.params['quiet'] = True
-                except:
-                    pass
-            return
+        if self.should_stop or self._closing:
+            raise yt_dlp.utils.DownloadCancelled("Загрузка остановлена пользователем")
         if _state is None:
             _state = {'downloaded': 0, 'total_size': 0, 'start_time': self.start_time}
         if d['status'] == 'downloading':
@@ -1645,10 +1683,14 @@ class VideoGrabber:
         with self.download_lock:
             self.should_stop = True
             self.is_downloading = False
-        if self.current_ydl:
-            try:
-                self.current_ydl.params['quiet'] = True
-            except: pass
+        with self._active_ydl_lock:
+            for ydl in list(self._active_ydl_instances):
+                try:
+                    ydl.params['quiet'] = True
+                    if hasattr(ydl, '_downloader') and ydl._downloader:
+                        ydl._downloader.params['quiet'] = True
+                except Exception:
+                    pass
         self.speed_label.configure(text="Загрузка остановлена")
         self.reset_ui()
     
@@ -1677,55 +1719,48 @@ class VideoGrabber:
             self.playlist_stats_label.configure(text="")
             self.current_video_label.configure(text="")
     
-    # ИСПРАВЛЕННЫЙ МЕТОД on_closing - корректное завершение программы
     def on_closing(self):
         """Корректное завершение программы"""
         self.animation_running = False
-        
-        # Отменяем анимацию если она запущена
         if self.fade_id:
             try:
                 self.root.after_cancel(self.fade_id)
             except:
                 pass
         
-        # Если идет загрузка - спрашиваем подтверждение
+        self._closing = True
+        
         if self.is_downloading:
-            if messagebox.askyesno("Подтверждение", "Загрузка не завершена. Выйти?"):
-                self.should_stop = True
-                self.is_downloading = False
-                # Даем время на остановку загрузки
-                time.sleep(0.5)
-                self._destroy_app()
-            # Если пользователь отказался - ничего не делаем
-        else:
-            self._destroy_app()
+            self.should_stop = True
+            self.is_downloading = False
+            with self._active_ydl_lock:
+                for ydl in list(self._active_ydl_instances):
+                    try:
+                        ydl.params['quiet'] = True
+                        if hasattr(ydl, '_downloader') and ydl._downloader:
+                            ydl._downloader.params['quiet'] = True
+                    except Exception:
+                        pass
+            time.sleep(0.3)
+        
+        self._destroy_app()
     
     def _destroy_app(self):
         """Полное уничтожение приложения"""
         try:
-            # Очищаем кэш
             self.thumbnail_cache.clear()
             self.skipped_videos.clear()
             self.playlist_videos.clear()
             self.video_widgets_data.clear()
-            
-            # Очищаем менеджер состояний
             if hasattr(self, 'state_manager'):
                 self.state_manager.cleanup()
-            
-            # Принудительная сборка мусора
             gc.collect()
-            
-            # Закрываем окно и завершаем приложение
             self.root.quit()
             self.root.destroy()
-            
         except Exception as e:
             print(f"Ошибка при закрытии: {e}")
-        
-        # Полный выход из программы
-        sys.exit(0)
+        finally:
+            os._exit(0)
     
     def run(self):
         self.root.mainloop()
@@ -1737,10 +1772,8 @@ def main():
     except Exception as e:
         print(f"Ошибка: {e}")
         traceback.print_exc()
-        input("Нажмите Enter для выхода...")
     finally:
-        # Гарантированный выход при любом исходе
-        sys.exit(0)
+        os._exit(0)
 
 if __name__ == "__main__":
     main()
