@@ -3,9 +3,8 @@
 
 Video Grabber - бесплатная программа для скачивания видео, плейлистов и каналов с популярных видохостингов и веб-сайтов
 
-![Version](https://img.shields.io/badge/version-3.0-blue)
+![Version](https://img.shields.io/badge/version-1.0-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows-0078D4)
-![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.8+-3776AB)
 
 ---
