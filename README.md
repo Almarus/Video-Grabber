@@ -33,7 +33,3 @@ Video Grabber - бесплатная программа для скачиван�
 2. Запустите `VideoGrabber.exe`
 3. При первом запуске программа предложит скачать необходимые компоненты (yt-dlp и FFmpeg)
 4. Вставьте ссылку, выберите желаемое качество и нажмите скачать
-https://img.shields.io/badge/Pillow-HPND-FFD43B	HPND	Обработка и отображение превью
-https://img.shields.io/badge/requests-Apache_2.0-00ADD8	Apache 2.0	HTTP-запросы и загрузка файлов
-https://img.shields.io/badge/browser--cookie3-MIT-4CAF50	MIT	Работа с куками браузера для VK
-https://img.shields.io/badge/PyInstaller-GPL_2.0-3776AB	GPL 2.0	Компиляция в единый EXE-файл
