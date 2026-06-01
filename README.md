@@ -10,7 +10,7 @@ Video Grabber - бесплатная программа для скачиван�
 
 ## 🚀 Установка и запуск
 
-1. Скачайте последнюю версию [Releases]([https://github.com/almarus/VideoGrabber/releases](https://github.com/Almarus/Video-Grabber/releases))
+1. Скачайте последнюю версию [Releases]([https://github.com/almarus/VideoGrabber/releases](https://github.com/Almarus/Video-Grabber/releases)
 2. Запустите программу от имени администратора `VideoGrabber.exe`
 3. При первом запуске ПО предложит скачать необходимые компоненты (yt-dlp и FFmpeg)
 4. Вставьте ссылку, выберите желаемое качество и нажмите кнопку "Анализировать"
