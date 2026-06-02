@@ -561,7 +561,7 @@ class AboutWindow:
             logo = ctk.CTkLabel(scroll, text="🎬", font=ctk.CTkFont(size=64), text_color="#2563EB")
         logo.pack(pady=(25,10))
         ctk.CTkLabel(scroll, text="Video Grabber", font=ctk.CTkFont(size=28, weight="bold"), text_color="#0F172A").pack()
-        ctk.CTkLabel(scroll, text="Версия 3.0", font=ctk.CTkFont(size=13), text_color="#64748B").pack(pady=(5,20))
+        ctk.CTkLabel(scroll, text="Версия 1.1", font=ctk.CTkFont(size=13), text_color="#64748B").pack(pady=(5,20))
         ctk.CTkFrame(scroll, fg_color="#E2E8F0", height=1).pack(fill="x", padx=40, pady=10)
         ctk.CTkLabel(scroll, text="Инструмент для архивирования личного контента\nсо 1800+ видео-сервисов", font=ctk.CTkFont(size=12), text_color="#475569", justify="center").pack(pady=(15,10))
         
@@ -640,7 +640,7 @@ class VideoGrabber:
         self.current_info_lock = threading.Lock()
         self.download_lock = threading.Lock()
         self.load_settings()
-        self.normal_window_size = None  # Для запоминания обычного размера окна
+        self.normal_window_size = None
         self._closing = False
 
         if getattr(sys, 'frozen', False):
@@ -806,7 +806,6 @@ class VideoGrabber:
         self.setup_ui()
         self.center_window()
         
-        # Исправленный обработчик закрытия окна
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         
         self.root.attributes('-alpha', 0.0)
@@ -1068,13 +1067,11 @@ class VideoGrabber:
         if hasattr(self, 'current_video_label'): self.current_video_label.configure(text="")
         self.url_entry.delete(0,'end')
         self.state_manager.switch_state('initial', self.content_frame)
-        # Восстанавливаем размер окна, который был до открытия плейлиста
         if self.normal_window_size:
             self.root.geometry(f"{self.normal_window_size[0]}x{self.normal_window_size[1]}")
         self.url_entry.focus()
     
     def switch_to_video_state(self, info):
-        # Запоминаем текущий размер окна перед переключением
         self.normal_window_size = (self.root.winfo_width(), self.root.winfo_height())
         
         self.is_playlist = False
@@ -1116,7 +1113,6 @@ class VideoGrabber:
         return any(re.search(p, url.lower()) for p in patterns)
     
     def switch_to_playlist_state(self, info):
-        # Запоминаем текущий размер окна перед переключением на плейлист
         self.normal_window_size = (self.root.winfo_width(), self.root.winfo_height())
         
         self.is_playlist = True
@@ -1184,7 +1180,6 @@ class VideoGrabber:
         active = len(self.playlist_videos)
         self.playlist_download_button.configure(text=f"Скачать {content_type} ({active})", fg_color=self.colors['primary'])
         self.state_manager.switch_state('playlist', self.content_frame)
-        # Устанавливаем комфортный размер окна для плейлиста
         self.root.geometry("700x600")
         if self.playlist_videos:
             self.select_playlist_video(0)
@@ -1512,6 +1507,16 @@ class VideoGrabber:
         refresh_ffmpeg_state()
 
         is_youtube = 'youtube.com' in url.lower() or 'youtu.be' in url.lower()
+        is_vk = 'vk.com' in url.lower() or 'vkvideo.ru' in url.lower()
+        is_rutube = 'rutube.ru' in url.lower()
+        is_dzen = 'dzen.ru' in url.lower() or 'zen.yandex.ru' in url.lower()
+        is_bilibili = 'bilibili.com' in url.lower()
+        is_twitch = 'twitch.tv' in url.lower()
+        is_soundcloud = 'soundcloud.com' in url.lower()
+        is_vimeo = 'vimeo.com' in url.lower()
+        is_facebook = 'facebook.com' in url.lower() or 'fb.com' in url.lower()
+        is_tiktok = 'tiktok.com' in url.lower()
+        is_twitter = 'twitter.com' in url.lower() or 'x.com' in url.lower()
 
         if FFMPEG_AVAILABLE:
             fmt_map = {
@@ -1523,7 +1528,6 @@ class VideoGrabber:
                 "Аудио": "bestaudio/best"
             }
         else:
-            print("ВНИМАНИЕ: FFmpeg не найден! Качество будет ограничено ~360p.")
             fmt_map = {
                 "Лучшее": "best[ext=mp4]/best",
                 "1080p": "best[height<=1080][ext=mp4]/best[ext=mp4]/best",
@@ -1535,12 +1539,6 @@ class VideoGrabber:
 
         format_str = fmt_map.get(quality, fmt_map["Лучшее"])
 
-        ext_args = {}
-        if is_youtube:
-            ext_args['youtube'] = {
-                'player_client': ['android_vr', 'android', 'web'],
-            }
-
         opts = {
             'format': format_str,
             'outtmpl': os.path.join(self.download_path, '%(title)s.%(ext)s'),
@@ -1550,26 +1548,50 @@ class VideoGrabber:
             'no_warnings': False,
             'user_agent': self.get_random_user_agent(),
             'socket_timeout': 30,
-            'retries': 5,
-            'fragment_retries': 5,
+            'retries': 10,
+            'fragment_retries': 10,
             'concurrent_fragment_downloads': 5,
             'buffersize': 1024*1024*16,
             'http_chunk_size': 1024*1024*10,
-            'extractor_args': ext_args,
         }
 
         if FFMPEG_AVAILABLE:
             opts['merge_output_format'] = 'mp4'
             opts['ffmpeg_location'] = FFMPEG_PATH
-        else:
-            print("ВНИМАНИЕ: FFmpeg не найден — качество ограничено ~360p.")
 
         if quality == "Аудио" and FFMPEG_AVAILABLE:
             opts['postprocessors'] = [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '320'}]
 
-        if 'rutube.ru' in url.lower():
-            opts['referer'] = 'https://rutube.ru/'
-        elif 'vk.com' in url.lower() or 'vkvideo.ru' in url.lower():
+        dash_sites = [is_vk, is_rutube, is_bilibili, is_twitch, is_vimeo, is_facebook, is_tiktok, is_twitter]
+        
+        if any(dash_sites) or is_dzen:
+            opts['hls_prefer_native'] = False
+            opts['hls_use_mpegts'] = True
+            opts['dash_mp4_fd'] = 'ffmpeg'
+            
+            if 'postprocessors' not in opts:
+                opts['postprocessors'] = []
+            opts['postprocessors'].append({
+                'key': 'FFmpegVideoConvertor',
+                'preferedformat': 'mp4',
+            })
+            
+            opts['socket_timeout'] = 60
+            opts['retries'] = 20
+            opts['fragment_retries'] = 20
+
+        if is_youtube:
+            opts['extractor_args'] = {
+                'youtube': {
+                    'player_client': ['android_vr', 'android', 'web'],
+                    'skip': ['hls', 'dash']
+                }
+            }
+            opts['retries'] = 10
+            opts['fragment_retries'] = 10
+            
+        elif is_vk:
+            opts['extractor_args'] = {'vk': {'skip_download': ['false']}}
             opts['referer'] = 'https://vk.com/'
             if BROWSER_COOKIES_AVAILABLE:
                 try:
@@ -1577,8 +1599,55 @@ class VideoGrabber:
                     opts['cookiefile'] = cj
                 except:
                     pass
-        elif 'dzen.ru' in url.lower() or 'zen.yandex.ru' in url.lower():
+                    
+        elif is_rutube:
+            opts['extractor_args'] = {'rutube': {'skip_download': ['false']}}
+            opts['referer'] = 'https://rutube.ru/'
+            opts['user_agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36'
+            
+        elif is_dzen:
+            if 'dzen.ru' in url.lower():
+                url = url.replace('dzen.ru', 'zen.yandex.ru')
+            opts['extractor_args'] = {'zenyandex': {'skip_download': ['false']}}
             opts['referer'] = 'https://zen.yandex.ru/'
+            opts['headers'] = {
+                'User-Agent': self.get_random_user_agent(), 
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3'
+            }
+            
+        elif is_bilibili:
+            opts['extractor_args'] = {'bilibili': {'skip_download': ['false']}}
+            opts['referer'] = 'https://www.bilibili.com/'
+            
+        elif is_twitch:
+            opts['extractor_args'] = {'twitch': {'skip_download': ['false']}}
+            opts['referer'] = 'https://www.twitch.tv/'
+            
+        elif is_soundcloud:
+            opts['format'] = 'bestaudio/best'
+            if 'postprocessors' not in opts:
+                opts['postprocessors'] = []
+            opts['postprocessors'].append({
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '320'
+            })
+            
+        elif is_vimeo:
+            opts['extractor_args'] = {'vimeo': {'skip_download': ['false']}}
+            
+        elif is_facebook:
+            opts['extractor_args'] = {'facebook': {'skip_download': ['false']}}
+            opts['referer'] = 'https://facebook.com/'
+            
+        elif is_tiktok:
+            opts['extractor_args'] = {'tiktok': {'skip_download': ['false']}}
+            opts['headers'] = {'User-Agent': 'TikTok 26.2.0 rv:262018 (iPhone; iOS 14.4.2; en_US) Cronet'}
+            
+        elif is_twitter:
+            opts['extractor_args'] = {'twitter': {'skip_download': ['false']}}
+            opts['referer'] = 'https://twitter.com/'
 
         strategies = []
 
@@ -1720,7 +1789,6 @@ class VideoGrabber:
             self.current_video_label.configure(text="")
     
     def on_closing(self):
-        """Корректное завершение программы"""
         self.animation_running = False
         if self.fade_id:
             try:
@@ -1736,17 +1804,18 @@ class VideoGrabber:
             with self._active_ydl_lock:
                 for ydl in list(self._active_ydl_instances):
                     try:
-                        ydl.params['quiet'] = True
                         if hasattr(ydl, '_downloader') and ydl._downloader:
-                            ydl._downloader.params['quiet'] = True
+                            if hasattr(ydl._downloader, 'stop'):
+                                ydl._downloader.stop()
+                        ydl.params['quiet'] = True
                     except Exception:
                         pass
-            time.sleep(0.3)
+                self._active_ydl_instances.clear()
         
+        time.sleep(0.5)
         self._destroy_app()
     
     def _destroy_app(self):
-        """Полное уничтожение приложения"""
         try:
             self.thumbnail_cache.clear()
             self.skipped_videos.clear()
@@ -1754,9 +1823,15 @@ class VideoGrabber:
             self.video_widgets_data.clear()
             if hasattr(self, 'state_manager'):
                 self.state_manager.cleanup()
+            
+            if hasattr(self, 'root') and self.root:
+                try:
+                    self.root.quit()
+                    self.root.destroy()
+                except:
+                    pass
+            
             gc.collect()
-            self.root.quit()
-            self.root.destroy()
         except Exception as e:
             print(f"Ошибка при закрытии: {e}")
         finally:

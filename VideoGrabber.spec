@@ -3,10 +3,8 @@ from PyInstaller.utils.hooks import collect_all
 
 datas = [('icon.ico', '.')]
 binaries = []
-hiddenimports = ['customtkinter', 'PIL', 'yt_dlp', 'browser_cookie3', 'requests', 'pillow', 'ctypes', 'webbrowser', 'subprocess', 'zipfile', 'shutil', 'concurrent.futures']
+hiddenimports = ['customtkinter', 'yt_dlp', 'PIL', 'browser_cookie3']
 tmp_ret = collect_all('customtkinter')
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
-tmp_ret = collect_all('yt_dlp')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 
@@ -28,16 +26,13 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='VideoGrabber',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
-    upx_exclude=[],
-    runtime_tmpdir=None,
+    upx=False,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -47,4 +42,13 @@ exe = EXE(
     version='version.txt',
     uac_admin=True,
     icon=['icon.ico'],
+)
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=False,
+    upx_exclude=[],
+    name='VideoGrabber',
 )
