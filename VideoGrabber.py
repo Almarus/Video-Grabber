@@ -561,7 +561,7 @@ class AboutWindow:
             logo = ctk.CTkLabel(scroll, text="🎬", font=ctk.CTkFont(size=64), text_color="#2563EB")
         logo.pack(pady=(25,10))
         ctk.CTkLabel(scroll, text="Video Grabber", font=ctk.CTkFont(size=28, weight="bold"), text_color="#0F172A").pack()
-        ctk.CTkLabel(scroll, text="Версия 1.1", font=ctk.CTkFont(size=13), text_color="#64748B").pack(pady=(5,20))
+        ctk.CTkLabel(scroll, text="Версия 1.2", font=ctk.CTkFont(size=13), text_color="#64748B").pack(pady=(5,20))
         ctk.CTkFrame(scroll, fg_color="#E2E8F0", height=1).pack(fill="x", padx=40, pady=10)
         ctk.CTkLabel(scroll, text="Инструмент для архивирования личного контента\nсо 1800+ видео-сервисов", font=ctk.CTkFont(size=12), text_color="#475569", justify="center").pack(pady=(15,10))
         
@@ -1124,8 +1124,8 @@ class VideoGrabber:
         pl_title = safe_filename(info.get('title', content_type), 35)
         self.playlist_title_label.configure(text=f"{'📺' if is_channel else '📋'} {pl_title}")
         self.playlist_count_label.configure(text=f"{self.total_videos} видео")
-        if self.total_videos > 1000:
-            self.playlist_videos = self.playlist_videos[:1000]
+        if self.total_videos > 5000:
+            self.playlist_videos = self.playlist_videos[:5000]
             self.playlist_count_label.configure(text=f"{len(self.playlist_videos)} видео (ограничено)")
             self.total_videos = len(self.playlist_videos)
         for w in self.playlist_list_frame.winfo_children(): w.destroy()
@@ -1384,6 +1384,34 @@ class VideoGrabber:
                         else:
                             all_videos.append(e)
                     self.playlist_videos = all_videos if all_videos else entries
+
+                    # yt-dlp иногда обрывает извлечение плейлиста на ~100-200 видео из-за
+                    # известной проблемы с continuation-токенами YouTube (особенно у
+                    # плейлистов с доступом по ссылке). Если заявленное число видео
+                    # больше реально полученного - пробуем альтернативную стратегию
+                    # извлечения и докачиваем недостающие записи.
+                    declared_count = info.get('playlist_count') or info.get('count') or 0
+                    if declared_count and len(self.playlist_videos) < declared_count and ('youtube.com' in url.lower() or 'youtu.be' in url.lower()):
+                        try:
+                            retry_opts = dict(opts)
+                            retry_opts['extractor_args'] = {
+                                'youtubetab': {'skip': ['webpage']},
+                                'youtube': {'player_client': ['android_vr', 'android', 'web']},
+                            }
+                            with yt_dlp.YoutubeDL(retry_opts) as ydl2:
+                                info2 = ydl2.extract_info(url, download=False)
+                            if info2 and info2.get('entries'):
+                                seen_ids = {v.get('id') or v.get('url') for v in self.playlist_videos}
+                                for v in info2.get('entries'):
+                                    if v and (v.get('id') or v.get('url')) not in seen_ids:
+                                        self.playlist_videos.append(v)
+                                        seen_ids.add(v.get('id') or v.get('url'))
+                        except Exception:
+                            pass
+                        if len(self.playlist_videos) < declared_count:
+                            print(f"Внимание: получено {len(self.playlist_videos)} из {declared_count} видео плейлиста "
+                                  f"(известное ограничение yt-dlp на больших YouTube-плейлистах).")
+
                     self.root.after(0, self.switch_to_playlist_state, info)
                 else:
                     self.playlist_videos = []
@@ -1433,7 +1461,7 @@ class VideoGrabber:
         tasks = []
         for i, v in enumerate(self.playlist_videos):
             if i in self.skipped_videos: continue
-            v_url = v.get('url') or v.get('webpage_url')
+            v_url = v.get('webpage_url') or v.get('url')
             if v_url:
                 tasks.append((i, v_url, v.get('title', f'Видео {i+1}')))
         if not tasks:
@@ -1541,7 +1569,7 @@ class VideoGrabber:
 
         opts = {
             'format': format_str,
-            'outtmpl': os.path.join(self.download_path, '%(title)s.%(ext)s'),
+            'outtmpl': os.path.join(self.download_path, '%(title,id)s.%(ext)s'),
             'progress_hooks': [lambda d, _s=_state: self.progress_hook(d, video_index, _s)],
             'noplaylist': True,
             'quiet': False,
