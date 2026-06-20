@@ -4,7 +4,7 @@ from PyInstaller.utils.hooks import collect_all
 datas = [('icon.ico', '.')]
 binaries = []
 hiddenimports = ['customtkinter', 'yt_dlp', 'PIL', 'browser_cookie3']
-tmp_ret = collect_all('customtkinter')
+tmp_ret = collect_all('yt_dlp')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 
@@ -40,7 +40,6 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     version='version.txt',
-    uac_admin=True,
     icon=['icon.ico'],
 )
 coll = COLLECT(
