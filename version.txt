@@ -1,8 +1,8 @@
 # UTF-8
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 2, 0, 0),
-    prodvers=(1, 2, 0, 0),
+    filevers=(1, 3, 0, 0),
+    prodvers=(1, 3, 0, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -15,14 +15,14 @@ VSVersionInfo(
       [
       StringTable(
         u'040904B0',
-        [StringStruct(u'CompanyName', u'Павел Прилуцкий'),
-        StringStruct(u'FileDescription', u'Video Grabber - загрузка видео с 1800+ сайтов'),
-        StringStruct(u'FileVersion', u'1.2.0.0'),
+        [StringStruct(u'CompanyName', u'Pavel Priluckiy'),
+        StringStruct(u'FileDescription', u'Video Grabber - download videos from 1800+ sites'),
+        StringStruct(u'FileVersion', u'1.3.0.0'),
         StringStruct(u'InternalName', u'VideoGrabber'),
-        StringStruct(u'LegalCopyright', u'© 2026 Павел Прилуцкий'),
+        StringStruct(u'LegalCopyright', u'© 2026 Pavel Priluckiy'),
         StringStruct(u'OriginalFilename', u'VideoGrabber.exe'),
         StringStruct(u'ProductName', u'Video Grabber'),
-        StringStruct(u'ProductVersion', u'1.2.0.0')])
+        StringStruct(u'ProductVersion', u'1.3.0.0')])
       ]), 
     VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
   ]

@@ -84,42 +84,78 @@ class YtDlpUpdater:
         return None
 
     @staticmethod
-    def download_latest(target_dir, progress_callback=None):
+    def download_latest(target_dir, progress_callback=None, log_callback=None):
         try:
+            if log_callback:
+                log_callback("Получение информации о последней версии yt-dlp...")
             release_info = requests.get(YTDLP_GITHUB_API, timeout=10).json()
             for asset in release_info.get("assets", []):
                 if asset["name"] == YTDLP_EXE_NAME:
                     exe_url = asset["browser_download_url"]
+                    if log_callback:
+                        log_callback(f"Загрузка yt-dlp: {exe_url}")
                     resp = requests.get(exe_url, stream=True, timeout=30)
                     if resp.status_code == 200:
                         total = int(resp.headers.get('content-length', 0))
                         down = 0
                         exe_path = target_dir / YTDLP_EXE_NAME
+                        if log_callback:
+                            log_callback(f"Сохранение в: {exe_path}")
                         with open(exe_path, "wb") as f:
                             for chunk in resp.iter_content(chunk_size=8192):
                                 f.write(chunk)
                                 down += len(chunk)
                                 if progress_callback and total:
                                     progress_callback(down / total)
+                        if log_callback:
+                            log_callback(f"yt-dlp успешно загружен ({format_size(total)})")
                         return exe_path
-        except:
-            pass
+        except Exception as e:
+            if log_callback:
+                log_callback(f"Ошибка загрузки yt-dlp: {str(e)}")
         return None
 
     @staticmethod
-    def update(ffmpeg_dir, progress_callback=None):
+    def check_and_update(ffmpeg_dir, progress_callback=None, log_callback=None):
         if not ffmpeg_dir.exists():
             ffmpeg_dir.mkdir(parents=True)
+            if log_callback:
+                log_callback(f"Создана папка: {ffmpeg_dir}")
+        
         local_path = ffmpeg_dir / YTDLP_EXE_NAME
         local_ver = YtDlpUpdater.get_local_version(local_path)
+        
+        if log_callback:
+            if local_ver:
+                log_callback(f"Локальная версия yt-dlp: {local_ver}")
+            else:
+                log_callback("yt-dlp не найден локально")
+        
         latest_ver = YtDlpUpdater.get_latest_version()
-        if latest_ver and (not local_ver or local_ver != latest_ver):
-            print(f"Обновление yt-dlp: {local_ver} -> {latest_ver}")
-            new_path = YtDlpUpdater.download_latest(ffmpeg_dir, progress_callback)
-            if new_path:
-                print("yt-dlp успешно обновлён.")
-                return new_path
-        return local_path if local_path.exists() else None
+        if log_callback and latest_ver:
+            log_callback(f"Последняя версия yt-dlp: {latest_ver}")
+        
+        if local_path.exists() and local_ver and latest_ver and local_ver == latest_ver:
+            if log_callback:
+                log_callback("✓ yt-dlp актуален, обновление не требуется")
+            return local_path, False
+        
+        if not local_path.exists():
+            if log_callback:
+                log_callback("Требуется загрузка yt-dlp")
+        elif latest_ver and local_ver != latest_ver:
+            if log_callback:
+                log_callback(f"Доступно обновление yt-dlp: {local_ver} → {latest_ver}")
+        
+        new_path = YtDlpUpdater.download_latest(ffmpeg_dir, progress_callback, log_callback)
+        if new_path:
+            if log_callback:
+                log_callback("✓ yt-dlp успешно обновлён")
+            return new_path, True
+        
+        if log_callback:
+            log_callback("✗ Не удалось обновить yt-dlp")
+        return local_path if local_path.exists() else None, False
 
 class FFmpegUpdater:
     @staticmethod
@@ -149,9 +185,11 @@ class FFmpegUpdater:
         return None
 
     @staticmethod
-    def download_latest(target_dir, progress_callback=None):
+    def download_latest(target_dir, progress_callback=None, log_callback=None):
         zip_path = target_dir / FFMPEG_ZIP_NAME
         try:
+            if log_callback:
+                log_callback("Загрузка FFmpeg...")
             with requests.get(FFMPEG_BASE_URL, stream=True, timeout=30) as r:
                 r.raise_for_status()
                 total = int(r.headers.get('content-length', 0))
@@ -162,71 +200,142 @@ class FFmpegUpdater:
                         down += len(chunk)
                         if progress_callback and total:
                             progress_callback(down / total)
+            if log_callback:
+                log_callback(f"Архив загружен ({format_size(total)}), распаковка...")
             with zipfile.ZipFile(zip_path, "r") as zf:
                 zf.extractall(target_dir)
             zip_path.unlink()
+            if log_callback:
+                log_callback("Поиск исполняемых файлов...")
             for item in target_dir.iterdir():
                 if item.is_dir() and item.name.startswith("ffmpeg"):
                     bin_dir = item / "bin"
                     if bin_dir.exists():
                         for exe in bin_dir.glob("*.exe"):
                             shutil.copy(exe, target_dir / exe.name)
+                            if log_callback:
+                                log_callback(f"  Скопирован: {exe.name}")
                     shutil.rmtree(item)
-            return target_dir / "ffmpeg.exe"
-        except:
+            result = target_dir / "ffmpeg.exe"
+            if result.exists() and log_callback:
+                log_callback("✓ FFmpeg успешно установлен")
+            return result
+        except Exception as e:
+            if log_callback:
+                log_callback(f"Ошибка загрузки FFmpeg: {str(e)}")
             if zip_path.exists():
                 zip_path.unlink()
             return None
 
     @staticmethod
-    def update(ffmpeg_dir, progress_callback=None):
+    def check_and_update(ffmpeg_dir, progress_callback=None, log_callback=None):
         if not ffmpeg_dir.exists():
             ffmpeg_dir.mkdir(parents=True)
+        
         local_path = ffmpeg_dir / "ffmpeg.exe"
         local_ver = FFmpegUpdater.get_local_version(local_path)
+        
+        if log_callback:
+            if local_ver:
+                log_callback(f"Локальная версия FFmpeg: {local_ver}")
+            else:
+                log_callback("FFmpeg не найден локально")
+        
         latest_ver = FFmpegUpdater.get_latest_version()
-        if latest_ver and (not local_ver or local_ver != latest_ver):
-            print(f"Обновление FFmpeg: {local_ver} -> {latest_ver}")
-            new_path = FFmpegUpdater.download_latest(ffmpeg_dir, progress_callback)
-            if new_path:
-                print("FFmpeg успешно обновлён.")
-                return new_path
-        return local_path if local_path.exists() else None
+        if log_callback and latest_ver:
+            log_callback(f"Последняя версия FFmpeg: {latest_ver}")
+        
+        if local_path.exists() and local_ver and latest_ver and local_ver == latest_ver:
+            if log_callback:
+                log_callback("✓ FFmpeg актуален, обновление не требуется")
+            return local_path, False
+        
+        if not local_path.exists():
+            if log_callback:
+                log_callback("Требуется загрузка FFmpeg")
+        elif latest_ver and local_ver != latest_ver:
+            if log_callback:
+                log_callback(f"Доступно обновление FFmpeg: {local_ver} → {latest_ver}")
+        
+        new_path = FFmpegUpdater.download_latest(ffmpeg_dir, progress_callback, log_callback)
+        if new_path:
+            return new_path, True
+        
+        if log_callback:
+            log_callback("✗ Не удалось обновить FFmpeg")
+        return local_path if local_path.exists() else None, False
 
 class UpdaterProgressWindow:
     def __init__(self, parent, ffmpeg_dir, on_complete=None):
         self.window = ctk.CTkToplevel(parent)
         self.window.title("Обновление компонентов")
-        self.window.geometry("450x250")
+        self.window.geometry("480x420")
         self.window.resizable(False, False)
         self.window.grab_set()
         self.window.protocol("WM_DELETE_WINDOW", self.on_cancel)
         self.window.after(100, lambda: set_window_icon(self.window))
+        self.window.configure(fg_color="#FFFFFF")
         self.on_complete = on_complete
         self.ffmpeg_dir = ffmpeg_dir
         self.cancelled = False
+        self.update_happened = False
 
-        ctk.CTkLabel(self.window, text="Загрузка компонентов...", font=ctk.CTkFont(size=14, weight="bold")).pack(pady=(15,5))
+        # Заголовок
+        header = ctk.CTkFrame(self.window, fg_color="#FFFFFF", height=40)
+        header.pack(fill="x", padx=15, pady=(15,5))
+        ctk.CTkLabel(header, text="🔄", font=ctk.CTkFont(size=24), text_color="#2563EB").pack(side="left", padx=(0,8))
+        ctk.CTkLabel(header, text="Обновление компонентов", font=ctk.CTkFont(size=16, weight="bold"), text_color="#0F172A").pack(side="left")
 
-        self.yt_label = ctk.CTkLabel(self.window, text="yt-dlp: ожидание", anchor="w")
-        self.yt_label.pack(fill="x", padx=20, pady=(10,0))
-        self.yt_progress = ctk.CTkProgressBar(self.window, width=400, height=8, progress_color="#2563EB")
+        # Прогресс yt-dlp
+        yt_frame = ctk.CTkFrame(self.window, fg_color="transparent")
+        yt_frame.pack(fill="x", padx=20, pady=(10,0))
+        self.yt_label = ctk.CTkLabel(yt_frame, text="yt-dlp: проверка", font=ctk.CTkFont(size=12), text_color="#475569", anchor="w")
+        self.yt_label.pack(fill="x")
+        self.yt_progress = ctk.CTkProgressBar(self.window, width=440, height=8, progress_color="#2563EB", fg_color="#E2E8F0", corner_radius=4)
         self.yt_progress.pack(padx=20, pady=(5,10))
         self.yt_progress.set(0)
 
-        self.ff_label = ctk.CTkLabel(self.window, text="FFmpeg: ожидание", anchor="w")
-        self.ff_label.pack(fill="x", padx=20, pady=(0,0))
-        self.ff_progress = ctk.CTkProgressBar(self.window, width=400, height=8, progress_color="#2563EB")
+        # Прогресс FFmpeg
+        ff_frame = ctk.CTkFrame(self.window, fg_color="transparent")
+        ff_frame.pack(fill="x", padx=20, pady=(0,0))
+        self.ff_label = ctk.CTkLabel(ff_frame, text="FFmpeg: проверка", font=ctk.CTkFont(size=12), text_color="#475569", anchor="w")
+        self.ff_label.pack(fill="x")
+        self.ff_progress = ctk.CTkProgressBar(self.window, width=440, height=8, progress_color="#2563EB", fg_color="#E2E8F0", corner_radius=4)
         self.ff_progress.pack(padx=20, pady=(5,10))
         self.ff_progress.set(0)
 
+        # Статус
         self.status_label = ctk.CTkLabel(self.window, text="", font=ctk.CTkFont(size=11), text_color="#64748B")
-        self.status_label.pack(pady=(5,10))
+        self.status_label.pack(pady=(0,5))
 
+        # Лог-окно
+        log_frame = ctk.CTkFrame(self.window, fg_color="#F8FAFC", corner_radius=8, border_width=1, border_color="#E2E8F0")
+        log_frame.pack(fill="both", expand=True, padx=20, pady=(5,15))
+        
+        log_header = ctk.CTkFrame(log_frame, fg_color="transparent", height=25)
+        log_header.pack(fill="x", padx=10, pady=(5,0))
+        ctk.CTkLabel(log_header, text="📋 Лог операций", font=ctk.CTkFont(size=11, weight="bold"), text_color="#0F172A").pack(side="left")
+        
+        ctk.CTkFrame(log_frame, fg_color="#E2E8F0", height=1).pack(fill="x", padx=10, pady=(5,0))
+        
+        self.log_text = ctk.CTkTextbox(log_frame, fg_color="#FFFFFF", text_color="#334155", font=ctk.CTkFont(size=10), corner_radius=0, border_width=0, wrap="word")
+        self.log_text.pack(fill="both", expand=True, padx=10, pady=10)
+        self.log_text.configure(state="disabled")
+
+        self.add_log("🚀 Начало проверки компонентов...")
         self.start_update()
+
+    def add_log(self, message):
+        """Добавляет сообщение в лог"""
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.log_text.configure(state="normal")
+        self.log_text.insert("end", f"[{timestamp}] {message}\n")
+        self.log_text.see("end")
+        self.log_text.configure(state="disabled")
 
     def on_cancel(self):
         self.cancelled = True
+        self.add_log("⚠️ Операция отменена пользователем")
         self.window.destroy()
 
     def update_yt_progress(self, value):
@@ -240,37 +349,96 @@ class UpdaterProgressWindow:
     def start_update(self):
         def task():
             try:
-                self.status_label.configure(text="Проверка yt-dlp...")
-                yt_result = YtDlpUpdater.update(self.ffmpeg_dir, self.update_yt_progress)
-                if yt_result:
-                    self.yt_label.configure(text="yt-dlp: успешно")
-                    self.yt_progress.set(1)
+                # Проверяем yt-dlp
+                self.window.after(0, lambda: self.status_label.configure(text="Проверка yt-dlp..."))
+                self.add_log("📦 Проверка yt-dlp...")
+                
+                yt_path, yt_updated = YtDlpUpdater.check_and_update(
+                    self.ffmpeg_dir, 
+                    progress_callback=lambda v: self.window.after(0, self.update_yt_progress, v),
+                    log_callback=lambda msg: self.window.after(0, self.add_log, msg)
+                )
+                
+                if yt_updated:
+                    self.window.after(0, lambda: self.yt_label.configure(text="yt-dlp: обновлён ✓"))
+                    self.update_happened = True
+                    self.add_log("✅ yt-dlp обновлён")
+                elif yt_path:
+                    self.window.after(0, lambda: self.yt_label.configure(text="yt-dlp: актуален ✓"))
+                    self.add_log("✅ yt-dlp актуален")
                 else:
-                    self.yt_label.configure(text="yt-dlp: уже актуален")
-                    self.yt_progress.set(1)
+                    self.window.after(0, lambda: self.yt_label.configure(text="yt-dlp: ошибка ✗"))
+                    self.add_log("❌ Ошибка проверки yt-dlp")
+                
+                self.window.after(0, lambda: self.yt_progress.set(1))
 
-                if self.cancelled: return
+                if self.cancelled: 
+                    self.add_log("⚠️ Проверка прервана")
+                    return
 
-                self.status_label.configure(text="Проверка FFmpeg...")
-                ff_result = FFmpegUpdater.update(self.ffmpeg_dir, self.update_ff_progress)
-                if ff_result:
-                    self.ff_label.configure(text="FFmpeg: успешно")
-                    self.ff_progress.set(1)
+                # Проверяем FFmpeg
+                self.window.after(0, lambda: self.status_label.configure(text="Проверка FFmpeg..."))
+                self.add_log("📦 Проверка FFmpeg...")
+                
+                ff_path, ff_updated = FFmpegUpdater.check_and_update(
+                    self.ffmpeg_dir, 
+                    progress_callback=lambda v: self.window.after(0, self.update_ff_progress, v),
+                    log_callback=lambda msg: self.window.after(0, self.add_log, msg)
+                )
+                
+                if ff_updated:
+                    self.window.after(0, lambda: self.ff_label.configure(text="FFmpeg: обновлён ✓"))
+                    self.update_happened = True
+                    self.add_log("✅ FFmpeg обновлён")
+                elif ff_path:
+                    self.window.after(0, lambda: self.ff_label.configure(text="FFmpeg: актуален ✓"))
+                    self.add_log("✅ FFmpeg актуален")
                 else:
-                    self.ff_label.configure(text="FFmpeg: уже актуален")
-                    self.ff_progress.set(1)
+                    self.window.after(0, lambda: self.ff_label.configure(text="FFmpeg: ошибка ✗"))
+                    self.add_log("❌ Ошибка проверки FFmpeg")
+                
+                self.window.after(0, lambda: self.ff_progress.set(1))
 
-                if self.cancelled: return
+                if self.cancelled: 
+                    self.add_log("⚠️ Проверка прервана")
+                    return
 
-                self.status_label.configure(text="Готово!")
-                self.window.after(1000, self.window.destroy)
-                if self.on_complete:
-                    self.on_complete()
+                if self.update_happened:
+                    self.add_log("🔄 Обновление завершено, требуется перезапуск...")
+                    self.window.after(0, lambda: self.status_label.configure(text="Обновление завершено! Перезапуск..."))
+                    self.window.after(2000, lambda: self.do_restart())
+                else:
+                    self.add_log("✨ Все компоненты актуальны")
+                    self.window.after(0, lambda: self.status_label.configure(text="Все компоненты актуальны"))
+                    self.window.after(1500, self.window.destroy)
+                    if self.on_complete:
+                        self.window.after(1500, self.on_complete)
+                        
             except Exception as e:
-                self.status_label.configure(text=f"Ошибка: {str(e)[:50]}")
+                error_msg = f"❌ Критическая ошибка: {str(e)[:100]}"
+                self.add_log(error_msg)
+                self.window.after(0, lambda: self.status_label.configure(text=f"Ошибка: {str(e)[:50]}"))
                 self.window.after(3000, self.window.destroy)
 
         threading.Thread(target=task, daemon=True).start()
+    
+    def do_restart(self):
+        try:
+            self.add_log("🔄 Перезапуск программы...")
+            self.window.destroy()
+            if self.on_complete:
+                self.on_complete()
+            
+            python = sys.executable
+            if getattr(sys, 'frozen', False):
+                subprocess.Popen([sys.executable])
+            else:
+                subprocess.Popen([python, sys.argv[0]])
+            
+            sys.exit(0)
+        except Exception as e:
+            self.add_log(f"❌ Ошибка при перезапуске: {e}")
+            sys.exit(0)
 
 if platform.system() != "Windows":
     ctk.CTk().withdraw()
@@ -458,14 +626,14 @@ class LicenseWindow:
         text_area.pack(fill="both", expand=True, pady=(0,15))
         
         sections = [
-            ("📌 1. О ПРОГРАММЕ", 
+            ("📌 О ПРОГРАММЕ", 
              "Video Grabber является инструментом для удобного переноса личных данных "
              "с популярных видео-сервисов.\n\nПрограмма предназначена для:\n"
              "• Архивирования вашего личного контента\n"
              "• Создания резервных копий собственных каналов\n"
              "• Просмотра видео в образовательных целях в офлайн-режиме"),
             
-            ("⚠️ 2. ОТКАЗ ОТ ОТВЕТСТВЕННОСТИ", 
+            ("⚠️ ОТКАЗ ОТ ОТВЕТСТВЕННОСТИ", 
              "АВТОР ПРОГРАММЫ НЕ НЕСЁТ НИКАКОЙ ОТВЕТСТВЕННОСТИ ЗА:\n\n"
              "• Использование программы в целях, нарушающих законодательство\n"
              "• Скачивание чужих видеороликов без разрешения авторов\n"
@@ -474,14 +642,14 @@ class LicenseWindow:
              "Пользователь берёт на себя ПОЛНУЮ ОТВЕТСТВЕННОСТЬ за соблюдение "
              "авторских прав и условий использования сервисов."),
             
-            ("🔒 3. ОГРАНИЧЕНИЯ ИСПОЛЬЗОВАНИЯ", 
+            ("🔒 ОГРАНИЧЕНИЯ ИСПОЛЬЗОВАНИЯ", 
              "• Программа поставляется в ОЗНАКОМИТЕЛЬНЫХ целях\n"
              "• Запрещено массовое скачивание контента\n"
              "• Запрещено коммерческое использование\n"
              "• Запрещено распространение скачанного контента\n"
              "• Запрещено изменение или декомпиляция программы"),
             
-            ("📚 4. ИСПОЛЬЗУЕМЫЕ БИБЛИОТЕКИ", 
+            ("📚 ИСПОЛЬЗУЕМЫЕ БИБЛИОТЕКИ", 
              "Программа использует следующие открытые библиотеки:\n\n"
              "• yt-dlp (Лицензия Unlicense)\n"
              "  github.com/yt-dlp/yt-dlp\n\n"
@@ -490,14 +658,14 @@ class LicenseWindow:
              "• pillow (Лицензия HPND)\n"
              "  github.com/python-pillow/Pillow"),
             
-            ("🎯 5. НАЗНАЧЕНИЕ ИНСТРУМЕНТА", 
+            ("🎯 НАЗНАЧЕНИЕ ИНСТРУМЕНТА", 
              "Данный инструмент создан ИСКЛЮЧИТЕЛЬНО для:\n\n"
              "✓ Архивирования личного контента\n"
              "✓ Бэкапов собственных каналов и плейлистов\n"
              "✓ Офлайн-доступа к образовательным материалам\n"
              "✓ Технического тестирования возможностей загрузки"),
             
-            ("✅ 6. ПОДТВЕРЖДЕНИЕ", 
+            ("✅ ПОДТВЕРЖДЕНИЕ", 
              "Принимая условия, вы подтверждаете, что:\n\n"
              "✓ Ознакомлены с условиями использования\n"
              "✓ Понимаете возможные риски\n"
@@ -561,7 +729,7 @@ class AboutWindow:
             logo = ctk.CTkLabel(scroll, text="🎬", font=ctk.CTkFont(size=64), text_color="#2563EB")
         logo.pack(pady=(25,10))
         ctk.CTkLabel(scroll, text="Video Grabber", font=ctk.CTkFont(size=28, weight="bold"), text_color="#0F172A").pack()
-        ctk.CTkLabel(scroll, text="Версия 1.2", font=ctk.CTkFont(size=13), text_color="#64748B").pack(pady=(5,20))
+        ctk.CTkLabel(scroll, text="Версия 1.3", font=ctk.CTkFont(size=13), text_color="#64748B").pack(pady=(5,20))
         ctk.CTkFrame(scroll, fg_color="#E2E8F0", height=1).pack(fill="x", padx=40, pady=10)
         ctk.CTkLabel(scroll, text="Инструмент для архивирования личного контента\nсо 1800+ видео-сервисов", font=ctk.CTkFont(size=12), text_color="#475569", justify="center").pack(pady=(15,10))
         
@@ -595,11 +763,6 @@ class AboutWindow:
     def run_updater(self):
         self.window.destroy()
         UpdaterProgressWindow(self.parent, self.video_grabber.ffmpeg_dir, on_complete=self.video_grabber.on_update_complete)
-    
-    def on_update_complete(self):
-        refresh_ffmpeg_state()
-        status = "FFmpeg найден — высокое качество доступно." if FFMPEG_AVAILABLE else "FFmpeg не найден. Качество ограничено 360p."
-        messagebox.showinfo("Обновление завершено", "Компоненты обновлены.\n\n" + status)
 
 class WidgetStateManager:
     def __init__(self):
@@ -669,14 +832,15 @@ class VideoGrabber:
 
         need_update = not yt_exists or not ff_exists
 
-        if yt_exists and not need_update:
-            local_ver = YtDlpUpdater.get_local_version(yt_path)
-            latest_ver = YtDlpUpdater.get_latest_version()
-            if local_ver and latest_ver and local_ver != latest_ver:
+        if yt_exists and ff_exists and not need_update:
+            local_yt_ver = YtDlpUpdater.get_local_version(yt_path)
+            latest_yt_ver = YtDlpUpdater.get_latest_version()
+            
+            if local_yt_ver and latest_yt_ver and local_yt_ver != latest_yt_ver:
                 answer = messagebox.askyesno(
                     "Доступно обновление yt-dlp",
-                    f"Установлена версия yt-dlp: {local_ver}\n"
-                    f"Новая версия: {latest_ver}\n\n"
+                    f"Установлена версия yt-dlp: {local_yt_ver}\n"
+                    f"Новая версия: {latest_yt_ver}\n\n"
                     "YouTube постоянно меняет защиту — старые версии могут не скачивать видео выше 360p.\n\n"
                     "Обновить сейчас?"
                 )
@@ -1385,11 +1549,6 @@ class VideoGrabber:
                             all_videos.append(e)
                     self.playlist_videos = all_videos if all_videos else entries
 
-                    # yt-dlp иногда обрывает извлечение плейлиста на ~100-200 видео из-за
-                    # известной проблемы с continuation-токенами YouTube (особенно у
-                    # плейлистов с доступом по ссылке). Если заявленное число видео
-                    # больше реально полученного - пробуем альтернативную стратегию
-                    # извлечения и докачиваем недостающие записи.
                     declared_count = info.get('playlist_count') or info.get('count') or 0
                     if declared_count and len(self.playlist_videos) < declared_count and ('youtube.com' in url.lower() or 'youtu.be' in url.lower()):
                         try:
