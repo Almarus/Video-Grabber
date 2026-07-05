@@ -1,7 +1,7 @@
 # Video-Grabber
 <img width="482" height="352" alt="изображение" src="https://github.com/user-attachments/assets/b0a33a8d-da83-4f68-b9eb-4de9db9b8925" />
 
-Video Grabber - бесплатная программа для скачивания видео, плейлистов и каналов с популярных видохостингов и веб-сайтов
+Video Grabber - бесплатная программа для скачивания видео, плейлистов и каналов с популярных видохостингов и веб-сайтов.
 
 
 ![Version](https://img.shields.io/badge/version-1.3-red)
